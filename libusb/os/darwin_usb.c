@@ -1885,7 +1885,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
   IOUSBEndpointProperties pipeProperties = {.bVersion = kUSBEndpointPropertiesVersion3};
 #else
   /* None of the values below are used in libusb for bulk transfers */
-  uint8_t                 direction, number, interval;
+  uint8_t                number, direction, interval, alternateSetting;
 #endif
 
   if (ep_to_pipeRef (transfer->dev_handle, transfer->endpoint, &pipeRef, NULL, &cInterface) != 0) {
@@ -1896,17 +1896,34 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
 
 #if InterfaceVersion >= 550
   ret = (*(cInterface->interface))->GetPipePropertiesV3 (cInterface->interface, pipeRef, &pipeProperties);
-
-  transferType = pipeProperties.bTransferType;
-  maxPacketSize = pipeProperties.wMaxPacketSize;
 #else
   ret = (*(cInterface->interface))->GetPipeProperties (cInterface->interface, pipeRef, &direction, &number,
                                                        &transferType, &maxPacketSize, &interval);
 #endif
+  if (ret) {
+    usbi_err (TRANSFER_CTX (transfer), "pipe properties not found on pipe %d", pipeRef);
+
+    return darwin_to_libusb (ret);
+  }
+
+#if InterfaceVersion >= 550
+  ret = (*(cInterface->interface))->GetEndpointPropertiesV3 (cInterface->interface, &pipeProperties);
+  transferType = pipeProperties.bTransferType;
+  maxPacketSize = pipeProperties.wMaxPacketSize;
+#else
+  ret = (*(cInterface->interface))->GetAlternateSetting (cInterface->interface, &alternateSetting);
 
   if (ret) {
-    usbi_err (TRANSFER_CTX (transfer), "bulk transfer failed (dir = %s): %s (code = 0x%08x)", IS_XFERIN(transfer) ? "In" : "Out",
-              darwin_error_str(ret), ret);
+    usbi_err (TRANSFER_CTX (transfer), "alternate setting not found on interface");
+
+    return darwin_to_libusb (ret);
+  }
+  ret = (*(cInterface->interface))->GetEndpointProperties (cInterface->interface, alternateSetting, number, direction,
+                                                           &transferType, &maxPacketSize, &interval);
+#endif
+  if (ret) {
+    usbi_err (TRANSFER_CTX (transfer), "endpoint properties not found");
+
     return darwin_to_libusb (ret);
   }
 
