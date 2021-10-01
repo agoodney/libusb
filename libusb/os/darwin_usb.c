@@ -1879,6 +1879,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
   uint8_t                transferType;
   uint8_t                pipeRef;
   uint16_t               maxPacketSize;
+  uint16_t               maxPacketSize_pipe; //DEBUG
 
   struct darwin_interface *cInterface;
 #if InterfaceVersion >= 550
@@ -1896,9 +1897,10 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
 
 #if InterfaceVersion >= 550
   ret = (*(cInterface->interface))->GetPipePropertiesV3 (cInterface->interface, pipeRef, &pipeProperties);
+  maxPacketSize_pipe = pipeProperties.wMaxPacketSize; //DEBUG
 #else
   ret = (*(cInterface->interface))->GetPipeProperties (cInterface->interface, pipeRef, &direction, &number,
-                                                       &transferType, &maxPacketSize, &interval);
+                                                       &transferType, &maxPacketSize_pipe, &interval);
 #endif
   if (ret) {
     usbi_err (TRANSFER_CTX (transfer), "pipe properties not found on pipe %d", pipeRef);
@@ -1926,6 +1928,12 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
 
     return darwin_to_libusb (ret);
   }
+
+  //DEBUG
+  if (maxPacketSize != maxPacketSize_pipe) {
+    usbi_warn (TRANSFER_CTX (transfer), "maxPacketSize mismatch between pipe (%d) and endpoint (%d)", maxPacketSize_pipe, maxPacketSize);
+  }
+  usbi_warn (TRANSFER_CTX (transfer), "maxPacketSize is %d", maxPacketSize);
 
   if (0 != (transfer->length % maxPacketSize)) {
     /* do not need a zero packet */
