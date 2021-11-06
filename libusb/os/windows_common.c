@@ -786,12 +786,13 @@ static int windows_handle_transfer_completion(struct usbi_transfer *itransfer)
 	DWORD result, bytes_transferred;
 
 	if (GetOverlappedResult(transfer_priv->handle, &transfer_priv->overlapped, &bytes_transferred, FALSE))
-		result = NO_ERROR;
+		result = transfer_priv->overlapped.Internal;
 	else
 		result = GetLastError();
 
 	usbi_dbg(ctx, "handling transfer %p completion with errcode %lu, length %lu",
 		 USBI_TRANSFER_TO_LIBUSB_TRANSFER(itransfer), ULONG_CAST(result), ULONG_CAST(bytes_transferred));
+	usbi_dbg(ctx, "overlapped Internal is %lu", ULONG_CAST(transfer_priv->overlapped.Internal));
 
 	switch (result) {
 	case NO_ERROR:
